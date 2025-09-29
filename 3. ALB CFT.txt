@@ -1,0 +1,55 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Shared ALB using subnets exported from another stack
+
+Parameters:
+  VPCStackName:
+    Type: String
+    Description: The name of the VPC stack from which to import subnets.
+
+  SecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+
+  ALBName:
+    Type: String
+    Default: procur-stg-alb
+
+Resources:
+  ALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Ref ALBName
+      Subnets:
+        !Split
+          - ","   # delimiter
+          - !ImportValue
+              Fn::Sub: "${VPCStackName}-PublicSubnets"
+      SecurityGroups:
+        - !Ref SecurityGroupId
+      Scheme: internet-facing
+      Type: application
+
+  ALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref ALB
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: fixed-response
+          FixedResponseConfig:
+            StatusCode: '404'
+            ContentType: text/plain
+            MessageBody: Not Found
+
+Outputs:
+  ALBArn:
+    Description: ALB ARN
+    Value: !Ref ALB
+    Export:
+      Name: !Sub "${AWS::StackName}-Arn"
+
+  ALBListenerArn:
+    Description: ALB Listener ARN
+    Value: !Ref ALBListener
+    Export:
+      Name: !Sub "${AWS::StackName}-ListenerArn"
